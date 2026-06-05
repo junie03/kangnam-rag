@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>강남대 학사정보 챗봇</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #003366;
+            --primary-light: #004b99;
+            --accent: #00A3C4;
+            --accent2: #e8b84b;
+            --bg: #f0f3f8;
+            --surface: #ffffff;
+            --surface2: #f7f9fc;
+            --border: #dde3ed;
+            --text: #1a2535;
+            --text-muted: #6b7a99;
+            --user-bg: #003366;
+            --bot-bg: #eef1f8;
+            --tag-bg: #e3eaff;
+            --tag-text: #3355aa;
+            --shadow: 0 8px 32px rgba(0,51,102,0.10);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        /* Layout */
+        .layout {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1100px;
+            align-items: flex-start;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .sidebar-card {
+            background: var(--surface);
+            border-radius: 14px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .sidebar-title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        /* Department Filter */
+        .dept-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .dept-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            cursor: pointer;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 13px;
+            color: var(--text);
+            transition: all 0.15s ease;
+            text-align: left;
+            width: 100%;
+        }
+
+        .dept-btn:hover { background: var(--tag-bg); border-color: var(--accent); color: var(--primary); }
+        .dept-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .dept-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* FAQ Buttons */
+        .faq-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .faq-btn {
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface2);
+            cursor: pointer;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 12.5px;
+            color: var(--text);
+            text-align: left;
+            transition: all 0.15s ease;
+            line-height: 1.4;
+        }
+
+        .faq-btn:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            transform: translateX(3px);
+        }
+
+        .faq-btn::before {
+            content: "Q. ";
+            font-weight: 700;
+            color: var(--accent2);
+            font-size: 11px;
+        }
+
+        .faq-btn:hover::before { color: rgba(255,255,255,0.8); }
+
+        /* Chat container */
+        .chat-container {
+            flex: 1;
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 680px;
+        }
+
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .header-icon {
+            width: 38px; height: 38px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+        }
+
+        .header-text .title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .header-text .subtitle {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            margin-top: 2px;
+        }
+
+        /* Active filter badge */
+        .filter-badge {
+            margin-left: auto;
+            background: var(--accent2);
+            color: var(--primary);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: none;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-badge.visible { display: flex; }
+
+        .filter-badge .clear-btn {
+            cursor: pointer;
+            opacity: 0.7;
+            font-size: 13px;
+            line-height: 1;
+        }
+
+        .filter-badge .clear-btn:hover { opacity: 1; }
+
+        /* Chat box */
+        .chat-box {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-box::-webkit-scrollbar { width: 4px; }
+        .chat-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        /* Messages */
+        .msg-wrapper {
+            display: flex;
+            flex-direction: column;
+            animation: fadeUp 0.25s ease;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-wrapper.user { align-items: flex-end; }
+        .msg-wrapper.bot { align-items: flex-start; }
+
+        .msg {
+            max-width: 78%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.65;
+        }
+
+        .user-msg {
+            background: var(--user-bg);
+            color: white;
+            border-bottom-right-radius: 3px;
+        }
+
+        .bot-msg {
+            background: var(--bot-bg);
+            color: var(--text);
+            border-bottom-left-radius: 3px;
+        }
+
+        /* Sources */
+        .sources-area {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            max-width: 78%;
+        }
+
+        .source-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: var(--tag-bg);
+            color: var(--tag-text);
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .source-chip:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        .source-chip::before {
+            content: "📄";
+            font-size: 10px;
+        }
+
+        /* Loading dots */
+        .loading-msg {
+            background: var(--bot-bg);
+            color: var(--text-muted);
+            padding: 14px 16px;
+            border-radius: 12px;
+            border-bottom-left-radius: 3px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .dot {
+            width: 6px; height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite;
+        }
+
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+            40% { transform: translateY(-6px); opacity: 1; }
+        }
+
+        /* Input area */
+        .input-area {
+            padding: 14px 16px;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 11px 16px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            outline: none;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 14px;
+            color: var(--text);
+            background: var(--surface2);
+            transition: border-color 0.15s ease;
+        }
+
+        input[type="text"]:focus { border-color: var(--accent); background: white; }
+
+        .send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        .send-btn:hover { background: var(--primary-light); transform: scale(1.05); }
+        .send-btn:active { transform: scale(0.97); }
+
+        /* Admin link */
+        .admin-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-decoration: none;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+
+        .admin-link:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* 웹 출처 chip - 녹색 계열로 PDF와 구분 */
+        .source-chip.web-chip {
+            background: #e6f4ea;
+            color: #1a7f37;
+            border-color: #9ad0a8;
+        }
+        .source-chip.web-chip:hover {
+            background: #1a7f37;
+            color: white;
+        }
+
+        .source-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            margin-top: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .layout { flex-direction: column; }
+            .sidebar { width: 100%; }
+            .faq-list { display: grid; grid-template-columns: 1fr 1fr; }
+            .dept-list { display: grid; grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+        <!-- Department Filter -->
+        <div class="sidebar-card">
+            <div class="sidebar-title">🏫 학과 필터</div>
+            <div class="dept-list" id="deptList">
+                <button class="dept-btn active" onclick="setDept(this, '')" data-dept="">
+                    <span class="dept-dot" style="background:#6b7a99"></span>전체
+                </button>
+                <button class="dept-btn" onclick="setDept(this, '컴퓨터공학')" data-dept="컴퓨터공학">
+                    <span class="dept-dot" style="background:#3b82f6"></span>컴퓨터공학
+                </button>
+                <button class="dept-btn" onclick="setDept(this, '인공지능융합')" data-dept="인공지능융합">
+                    <span class="dept-dot" style="background:#6366f1"></span>인공지능융합
+                </button>
+                <button class="dept-btn" onclick="setDept(this, '경영학')" data-dept="경영학">
+                    <span class="dept-dot" style="background:#10b981"></span>경영학
+                </button>
+                <button class="dept-btn" onclick="setDept(this, '사회복지학')" data-dept="사회복지학">
+                    <span class="dept-dot" style="background:#f59e0b"></span>사회복지학
+                </button>
+                <button class="dept-btn" onclick="setDept(this, '교육학')" data-dept="교육학">
+                    <span class="dept-dot" style="background:#ec4899"></span>교육학
+                </button>
+            </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="sidebar-card">
+            <div class="sidebar-title">💬 자주 묻는 질문</div>
+            <div class="faq-list">
+                <button class="faq-btn" onclick="askFaq('졸업 학점은 몇 점이야?')">졸업 학점은 몇 점이야?</button>
+                <button class="faq-btn" onclick="askFaq('수강신청 기간은 언제야?')">수강신청 기간은 언제야?</button>
+                <button class="faq-btn" onclick="askFaq('F학점 재수강 규정을 알려줘')">F학점 재수강 규정</button>
+                <button class="faq-btn" onclick="askFaq('휴학 신청 방법이 어떻게 돼?')">휴학 신청 방법</button>
+                <button class="faq-btn" onclick="askFaq('학점 취득 인정 범위가 어떻게 돼?')">학점 취득 인정 범위</button>
+                <button class="faq-btn" onclick="askFaq('복수전공 신청 조건이 뭐야?')">복수전공 신청 조건</button>
+            </div>
+        </div>
+
+        <!-- Admin -->
+        <div class="sidebar-card">
+            <div class="sidebar-title">⚙️ 관리</div>
+            <a class="admin-link" onclick="window.location.href='/admin'">
+                🗂️ 관리자 페이지 (PDF 업로드)
+            </a>
+        </div>
+
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-container">
+        <div class="header">
+            <div class="header-icon">🎓</div>
+            <div class="header-text">
+                <div class="title">강남대 학칙 RAG 챗봇</div>
+                <div class="subtitle">학사 규정 및 수강 정보 안내</div>
+            </div>
+            <div class="filter-badge" id="filterBadge">
+                <span id="filterLabel"></span>
+                <span class="clear-btn" onclick="setDept(document.querySelector('.dept-btn'), '')">✕</span>
+            </div>
+        </div>
+
+        <div class="chat-box" id="chatBox">
+            <div class="msg-wrapper bot">
+                <div class="msg bot-msg">안녕하세요! 강남대학교 수강 규정 및 학칙에 대해 무엇이든 물어보세요.<br><small style="opacity:0.6">좌측 버튼으로 학과를 선택하거나 자주 묻는 질문을 눌러보세요.</small></div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="userInput"
+                placeholder="질문을 입력하세요..."
+                onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentDept = '';
+
+    function setDept(btn, dept) {
+        document.querySelectorAll('.dept-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentDept = dept;
+
+        const badge = document.getElementById('filterBadge');
+        const label = document.getElementById('filterLabel');
+        if (dept) {
+            label.textContent = dept;
+            badge.classList.add('visible');
+        } else {
+            badge.classList.remove('visible');
+        }
+    }
+
+    function askFaq(question) {
+        document.getElementById('userInput').value = question;
+        sendMessage();
+    }
+
+    function addMessage(role, content, sources, webSources) {
+        const chatBox = document.getElementById('chatBox');
+        const wrapper = document.createElement('div');
+        wrapper.className = `msg-wrapper ${role}`;
+
+        const msg = document.createElement('div');
+        msg.className = `msg ${role === 'user' ? 'user-msg' : 'bot-msg'}`;
+        msg.textContent = content;
+        wrapper.appendChild(msg);
+
+        // PDF 출처 chips
+        if (role === 'bot' && sources && sources.length > 0) {
+            const sourcesArea = document.createElement('div');
+            sourcesArea.className = 'sources-area';
+
+            const pdfLabel = document.createElement('div');
+            pdfLabel.className = 'source-label';
+            pdfLabel.textContent = '📄 학칙 PDF 출처';
+            sourcesArea.appendChild(pdfLabel);
+
+            sources.forEach(src => {
+                const chip = document.createElement('a');
+                chip.className = 'source-chip';
+                chip.textContent = src.page ? `${src.filename} p.${src.page}` : src.filename;
+                chip.title = `${src.filename} ${src.page ? src.page + '페이지로 이동' : ''}`;
+                chip.href = `/data/${encodeURIComponent(src.filename)}${src.page ? '#page=' + src.page : ''}`;
+                chip.target = '_blank';
+                sourcesArea.appendChild(chip);
+            });
+
+            wrapper.appendChild(sourcesArea);
+        }
+
+        // 웹 출처 chips (fallback 사용 시)
+        if (role === 'bot' && webSources && webSources.length > 0) {
+            const webArea = document.createElement('div');
+            webArea.className = 'sources-area';
+
+            const webLabel = document.createElement('div');
+            webLabel.className = 'source-label';
+            webLabel.textContent = '🌐 웹사이트 출처 (PDF 미수록 정보)';
+            webArea.appendChild(webLabel);
+
+            webSources.forEach(src => {
+                const chip = document.createElement('a');
+                chip.className = 'source-chip web-chip';
+                // URL에서 도메인+경로 짧게 표시
+                try {
+                    const u = new URL(src.url);
+                    chip.textContent = u.hostname + u.pathname.replace(/\/$/, '').slice(-30);
+                } catch {
+                    chip.textContent = src.url.slice(0, 40) + '…';
+                }
+                chip.href = src.url;
+                chip.target = '_blank';
+                chip.title = src.url;
+                webArea.appendChild(chip);
+            });
+
+            wrapper.appendChild(webArea);
+        }
+
+        chatBox.appendChild(wrapper);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function addLoading() {
+        const chatBox = document.getElementById('chatBox');
+        const wrapper = document.createElement('div');
+        wrapper.className = 'msg-wrapper bot';
+        wrapper.id = 'loadingMsg';
+
+        const loading = document.createElement('div');
+        loading.className = 'loading-msg';
+        loading.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+        wrapper.appendChild(loading);
+        chatBox.appendChild(wrapper);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function removeLoading() {
+        const el = document.getElementById('loadingMsg');
+        if (el) el.remove();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('userInput');
+        const question = input.value.trim();
+        if (!question) return;
+
+        addMessage('user', question);
+        input.value = '';
+        addLoading();
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, department: currentDept })
+            });
+
+            const data = await response.json();
+            removeLoading();
+            addMessage('bot', data.answer, data.sources, data.web_sources);
+        } catch (error) {
+            removeLoading();
+            addMessage('bot', '⚠️ 서버 에러가 발생했습니다. FastAPI 서버가 켜져 있는지 확인하세요.');
+        }
+    }
+</script>
+</body>
+</html>
