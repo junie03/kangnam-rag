@@ -1,6 +1,6 @@
 """
-강남대 RAG 챗봇 - Streamlit 데모 버전 (v2: 추천 질문 버튼 추가)
-streamlit run streamlit_app.py
+강남대 RAG 챗봇 
+streamlit run streamlit_app_v2.py
 """
 
 import os
@@ -19,15 +19,18 @@ from langchain_core.prompts import ChatPromptTemplate
 # 환경 변수
 # ────────────────────────────────────────────────────────────────
 load_dotenv()
-if "OPENAI_API_KEY" not in os.environ and "OPENAI_API_KEY" in st.secrets:
-    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+if "OPENAI_API_KEY" not in os.environ:
+    try:
+        if "OPENAI_API_KEY" in st.secrets:
+            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+    except (FileNotFoundError, Exception):
+        pass  # 로컬 실행 시 secrets.toml 없어도 무시
 
 # ────────────────────────────────────────────────────────────────
 # 페이지 설정
 # ────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="강남대 학사 챗봇", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="강남대 학사 챗봇 - RAG vs LLM 비교", page_icon="🎓", layout="wide")
 st.title("🎓 강남대학교 학사 정보 챗봇")
-st.caption("학칙·수강규정 기반 RAG 챗봇 (데모 버전)")
 
 # ────────────────────────────────────────────────────────────────
 # 벡터 DB / LLM 로드
@@ -71,8 +74,22 @@ web_system_prompt = (
     "이 내용을 바탕으로 질문에 친절하고 정확하게 답변하세요.\n\n"
     "웹사이트 Context:\n{context}"
 )
+
+# ★ 순수 LLM용 프롬프트 (RAG 컨텍스트 없이 자체 지식으로만 답변)
+pure_llm_system_prompt = (
+    "당신은 강남대학교의 학사 정보를 안내하는 AI 조교입니다. "
+    "별도의 문서나 데이터베이스 없이, 당신이 사전 학습으로 알고 있는 "
+    "일반적인 대학교 학사 규정과 강남대학교에 대한 지식만으로 답변하세요.\n\n"
+    "■ 답변 작성 규칙:\n"
+    "1. 질문에서 묻는 핵심 정보만 직접적으로 답하세요.\n"
+    "2. 확실하지 않은 정보는 '일반적으로', '보통'과 같은 표현을 사용하세요.\n"
+    "3. 답변은 3~5문장 이내로 간결하게 작성하세요.\n"
+    "4. 강남대학교의 정확한 규정은 공식 홈페이지나 학사팀에 확인을 권장하세요."
+)
+
 prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])
 web_prompt = ChatPromptTemplate.from_messages([("system", web_system_prompt), ("human", "{input}")])
+pure_llm_prompt = ChatPromptTemplate.from_messages([("system", pure_llm_system_prompt), ("human", "{input}")])
 
 # ────────────────────────────────────────────────────────────────
 # 쿼리 확장
@@ -163,7 +180,14 @@ def is_not_found_answer(answer: str) -> bool:
     return any(p in answer for p in NOT_FOUND_PHRASES)
 
 # ────────────────────────────────────────────────────────────────
-# 답변 함수
+# ★ 순수 LLM 답변 함수 (RAG 없이)
+# ────────────────────────────────────────────────────────────────
+def answer_pure_llm(question: str) -> str:
+    formatted = pure_llm_prompt.format_messages(input=question)
+    return llm.invoke(formatted).content
+
+# ────────────────────────────────────────────────────────────────
+# RAG 답변 함수
 # ────────────────────────────────────────────────────────────────
 def answer_question(question: str, dept: str = "") -> dict:
     k = 10
@@ -237,12 +261,24 @@ with st.sidebar:
         format_func=lambda x: "전체" if x == "" else x,
     )
     st.markdown("---")
+
+    with st.expander("💡추천 질문"):
+        st.markdown(
+            "**RAG가 잘 답하는 질문**\n"
+            "- 휴학 신청 방법\n"
+            "- 전공 필수 과목이 뭐야?\n"
+            "- 학사경고는 평점 몇 점 미만이야?\n"
+            "- 휴학은 최대 몇 학기까지 가능해?\n"
+            "- 졸업 학점은 몇 점이야?\n"
+            "- 특정 학과 졸업 요건"
+        )
+    st.markdown("---")
     if st.button("🗑️ 대화 초기화", use_container_width=True):
         st.session_state.messages = []
         st.session_state.pending_question = None
         st.rerun()
     st.markdown("---")
-    st.caption("강남대학교 RAG 챗봇 데모\n2025")
+    st.caption("강남대학교 RAG 챗봇 비교 데모\n2025")
 
 # ────────────────────────────────────────────────────────────────
 # session_state 초기화
@@ -253,7 +289,7 @@ if "pending_question" not in st.session_state:
     st.session_state.pending_question = None
 
 # ────────────────────────────────────────────────────────────────
-# ★ 추천 질문 버튼 (FAQ) — 대화가 없을 때만 표시
+# 추천 질문 버튼 — 대화가 없을 때만 표시
 # ────────────────────────────────────────────────────────────────
 FAQ_QUESTIONS = [
     ("🎓 졸업 학점", "졸업 학점은 몇 점이야?"),
@@ -275,53 +311,126 @@ if not st.session_state.messages:
     st.markdown("---")
 
 # ────────────────────────────────────────────────────────────────
-# 대화 렌더링
+# ★ 비교 레이아웃 헤더 (대화가 있을 때만 표시)
+# ────────────────────────────────────────────────────────────────
+if st.session_state.messages:
+    col_left, col_right = st.columns(2)
+    with col_left:
+        st.markdown(
+            """
+            <div style='background: linear-gradient(135deg, #1e3a5f, #2d6a4f);
+                        padding: 12px 20px; border-radius: 10px; margin-bottom: 8px;
+                        text-align: center;'>
+                <span style='color: white; font-size: 16px; font-weight: bold;'>
+                    📚 RAG 답변
+                </span><br>
+                <span style='color: #a8d8a8; font-size: 12px;'>
+                    학칙 문서 + 웹사이트 기반
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with col_right:
+        st.markdown(
+            """
+            <div style='background: linear-gradient(135deg, #4a1c6e, #7b2d8b);
+                        padding: 12px 20px; border-radius: 10px; margin-bottom: 8px;
+                        text-align: center;'>
+                <span style='color: white; font-size: 16px; font-weight: bold;'>
+                    🤖 순수 LLM 답변
+                </span><br>
+                <span style='color: #d8a8e8; font-size: 12px;'>
+                    사전 학습 지식만 사용
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+# ────────────────────────────────────────────────────────────────
+# 대화 렌더링 (좌: RAG, 우: 순수 LLM)
 # ────────────────────────────────────────────────────────────────
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-        if msg.get("sources"):
-            with st.expander("📎 출처"):
-                for s in msg["sources"]:
-                    st.markdown(f"- {s}")
+    if msg["role"] == "user":
+        # 질문은 전체 너비로 표시
+        with st.chat_message("user"):
+            st.markdown(msg["content"])
+    else:
+        # 답변은 2컬럼 비교 레이아웃
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+            with st.container(border=True):
+                st.markdown("##### 📚 RAG 답변")
+                st.markdown(msg.get("rag_content", ""))
+                if msg.get("sources"):
+                    with st.expander("📎 출처"):
+                        for s in msg["sources"]:
+                            st.markdown(f"- {s}")
+
+        with col_right:
+            with st.container(border=True):
+                st.markdown("##### 🤖 순수 LLM 답변")
+                st.markdown(msg.get("llm_content", ""))
+                st.caption("⚠️ 문서 검색 없이 AI 사전 지식만 사용")
 
 # ────────────────────────────────────────────────────────────────
 # 입력 처리 — chat_input 또는 FAQ 버튼
 # ────────────────────────────────────────────────────────────────
 user_input = st.chat_input("질문을 입력하세요 (예: 휴학 신청은 어떻게 하나요?)")
 
-# FAQ 버튼이 눌렸으면 그 질문을 사용
 if st.session_state.pending_question:
     user_input = st.session_state.pending_question
-    st.session_state.pending_question = None  # 한 번만 사용
+    st.session_state.pending_question = None
 
 if user_input:
+    # 사용자 메시지 추가
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    with st.chat_message("assistant"):
-        with st.spinner("답변 생성 중..."):
-            result = answer_question(user_input, dept)
-        st.markdown(result["answer"])
+    # ★ 2컬럼 동시 답변 생성
+    col_left, col_right = st.columns(2)
 
-        sources_display = []
-        if result["pdf_sources"]:
-            for s in result["pdf_sources"][:5]:
-                page = f" (p.{s['page']})" if s["page"] else ""
-                sources_display.append(f"📄 {s['filename']}{page}")
-        if result["web_sources"]:
-            for u in result["web_sources"]:
-                sources_display.append(f"🌐 [{u}]({u})")
+    rag_result = None
+    llm_answer = None
 
-        if sources_display:
-            with st.expander("📎 출처"):
-                for s in sources_display:
-                    st.markdown(f"- {s}")
+    with col_left:
+        with st.container(border=True):
+            st.markdown("##### 📚 RAG 답변")
+            with st.spinner("문서 검색 중..."):
+                rag_result = answer_question(user_input, dept)
+            st.markdown(rag_result["answer"])
 
+            sources_display = []
+            if rag_result["pdf_sources"]:
+                for s in rag_result["pdf_sources"][:5]:
+                    page = f" (p.{s['page']})" if s["page"] else ""
+                    sources_display.append(f"📄 {s['filename']}{page}")
+            if rag_result["web_sources"]:
+                for u in rag_result["web_sources"]:
+                    sources_display.append(f"🌐 [{u}]({u})")
+
+            if sources_display:
+                with st.expander("📎 출처"):
+                    for s in sources_display:
+                        st.markdown(f"- {s}")
+
+    with col_right:
+        with st.container(border=True):
+            st.markdown("##### 🤖 순수 LLM 답변")
+            with st.spinner("AI 답변 생성 중..."):
+                llm_answer = answer_pure_llm(user_input)
+            st.markdown(llm_answer)
+            st.caption("⚠️ 문서 검색 없이 AI 사전 지식만 사용")
+
+    # session_state에 저장 (role="assistant"로 통합 저장)
     st.session_state.messages.append({
         "role": "assistant",
-        "content": result["answer"],
-        "sources": sources_display,
+        "rag_content": rag_result["answer"] if rag_result else "",
+        "llm_content": llm_answer or "",
+        "sources": sources_display if rag_result else [],
     })
-    st.rerun()  # FAQ 버튼 영역을 다시 그려서 숨기기 위함
+
+    st.rerun()
